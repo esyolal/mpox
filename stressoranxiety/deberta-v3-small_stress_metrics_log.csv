@@ -1,0 +1,2 @@
+timestamp,model,num_labels,f1_macro,f1_weighted,roc_auc,train_batch_size,eval_batch_size,num_train_epochs
+2025-05-21 23:58:43,microsoft/deberta-v3-small,2,0.8616,0.8899,0.9451,8,8,2

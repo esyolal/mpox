@@ -1,0 +1,4 @@
+timestamp,model,num_labels,f1_macro,f1_weighted,roc_auc,train_batch_size,eval_batch_size,num_train_epochs
+2025-05-22 02:12:05,bert-base-uncased,2,0.9872,0.9872,0.9955,8,8,2
+2025-05-28 21:04:27,bert-base-uncased,2,0.4891,0.9366,0.4771,8,8,2
+2025-05-28 23:40:50,bert-base-uncased,2,0.9033,0.9845,0.9826,8,8,10.0,3,2e-05
