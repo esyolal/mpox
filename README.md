@@ -30,7 +30,7 @@ All models were evaluated under identical conditions (same dataset splits, prepr
 Each model was fine-tuned separately for:
 
 - **Hate classification** (e.g., `hate`, `not hate`)
-- **Sentiment analysis** (e.g., `positive`, `neutral`, `negative`)
+- **Sentiment analysis** (e.g., `anger`, `disgust`, `fear`, `joy`, `neutral`, `sadness`, `surprise`)
 - **Stress/anxiety detection** (e.g., `stress`, `no stress`)
 
 All training scripts follow the same structure:
