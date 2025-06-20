@@ -1,0 +1,2 @@
+timestamp,model,num_labels,f1_macro,f1_weighted,roc_auc,train_batch_size,eval_batch_size,num_train_epochs,early_stopping_patience,learning_rate
+2025-06-19 16:40:49,bert-base-uncased,2,0.8866,0.9823,0.9827,8,8,6.0,3,2e-05

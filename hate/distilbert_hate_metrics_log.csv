@@ -1,0 +1,2 @@
+timestamp,model,num_labels,f1_macro,f1_weighted,roc_auc,train_batch_size,eval_batch_size,num_train_epochs,early_stopping_patience,learning_rate
+2025-06-19 12:25:28,distilbert-base-uncased,2,0.8927,0.9827,0.9834,8,8,9.0,3,2e-05

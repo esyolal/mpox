@@ -1,51 +1,39 @@
+
 import pandas as pd
 import torch
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-# from sklearn.utils import class_weight # Artık sınıf ağırlıklandırma kullanmıyoruz
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, EarlyStoppingCallback
 from datasets import Dataset
 from sklearn.metrics import classification_report, roc_auc_score, f1_score, precision_recall_fscore_support
 from datetime import datetime
 import csv
 import os
-import torch.nn as nn # Hala CrossEntropyLoss için gerekli
+import torch.nn as nn
 
-# 🔌 GPU kontrolü
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Kullanılan cihaz: {device}")
 
-# 📊 Veri hazırlama (Class Weighting kaldırıldı, 80/20 bölme)
 def prepare_hate_data(path):
     df = pd.read_excel(path)
     df = df[['Translated Post Description', 'Hate']].dropna()
     df['Translated Post Description'] = df['Translated Post Description'].apply(lambda x: " ".join(str(x).split()[:250]))
     df['Hate'] = df['Hate'].str.lower().str.strip()
-
     le = LabelEncoder()
     df['label'] = le.fit_transform(df['Hate'])
-
     X_train, X_test, y_train, y_test = train_test_split(
         df['Translated Post Description'], df['label'],
-        test_size=0.2, # Test setini %20 olarak güncelledik
-        stratify=df['label'], 
-        random_state=42
+        test_size=0.2, stratify=df['label'], random_state=42
     )
-
     return X_train, X_test, y_train, y_test, le
 
-# 📂 Veri dosyası
-data_path = "../MonkeyPox.xlsx" 
-
-# 📥 Veriyi hazırla
+data_path = "../MonkeyPox.xlsx"
 X_train, X_test, y_train, y_test, le = prepare_hate_data(data_path)
 
-# 🤖 Dataset formatına dönüştür
 train_ds = Dataset.from_dict({"text": X_train.tolist(), "label": y_train.tolist()})
 test_ds = Dataset.from_dict({"text": X_test.tolist(), "label": y_test.tolist()})
 
-# 🔤 Tokenizer ve model
 model_ckpt = "distilbert-base-uncased"
 tokenizer = AutoTokenizer.from_pretrained(model_ckpt)
 
@@ -55,56 +43,30 @@ def tokenize_function(examples):
 train_ds = train_ds.map(tokenize_function, batched=True)
 test_ds = test_ds.map(tokenize_function, batched=True)
 
-# 🏗️ Model
 num_labels = len(le.classes_)
 model = AutoModelForSequenceClassification.from_pretrained(model_ckpt, num_labels=num_labels).to(device)
 
-# Sınıf ağırlıklarını hesaplama kısmı kaldırıldı
-# class_weights = class_weight.compute_class_weight(
-#     class_weight='balanced',
-#     classes=np.unique(y_train),
-#     y=y_train
-# )
-# class_weights_tensor = torch.tensor(class_weights, dtype=torch.float).to(device)
-
-# Custom Trainer sınıfı kaldırıldı, artık standart Trainer kullanıyoruz
-# class CustomTrainer(Trainer):
-#     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=0):
-#         labels = inputs.pop("labels")
-#         outputs = model(**inputs)
-#         logits = outputs.get("logits")
-#         # loss_fct = nn.CrossEntropyLoss(weight=class_weights_tensor) # Ağırlık kaldırıldı
-#         loss_fct = nn.CrossEntropyLoss() # Standart CrossEntropyLoss
-#         loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
-#         return (loss, outputs) if return_outputs else loss
-
-# Değerlendirme metriklerini hesaplayan fonksiyon (değişmedi)
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     predictions = np.argmax(logits, axis=-1)
-
-    metrics = {}
-    
-    metrics["f1_macro"] = f1_score(labels, predictions, average="macro")
-    metrics["f1_weighted"] = f1_score(labels, predictions, average="weighted")
+    metrics = {
+        "f1_macro": f1_score(labels, predictions, average="macro"),
+        "f1_weighted": f1_score(labels, predictions, average="weighted"),
+    }
     precision, recall, _, _ = precision_recall_fscore_support(labels, predictions, average="weighted", zero_division=0)
     metrics["precision"] = precision
     metrics["recall"] = recall
-
     if num_labels == 2:
         probs = torch.nn.functional.softmax(torch.tensor(logits), dim=-1)[:, 1].numpy()
         metrics["roc_auc"] = roc_auc_score(labels, probs)
     else:
         probs = torch.nn.functional.softmax(torch.tensor(logits), dim=-1).numpy()
         metrics["roc_auc"] = roc_auc_score(labels, probs, multi_class="ovo", average="macro")
-    
     return metrics
 
-
-# ⚙️ Eğitim ayarları
 training_args = TrainingArguments(
-    output_dir="./distilbert_hate_output_80_20_no_weights", # Çıktı klasörünü güncelledik
-    logging_dir="./distilbert_hate_output_80_20_no_weights/logs", # Günlük klasörünü güncelledik
+    output_dir="./distilbert_hate_output_80_20_no_weights",
+    logging_dir="./distilbert_hate_output_80_20_no_weights/logs",
     eval_strategy="epoch",
     logging_strategy="steps",
     logging_steps=50,
@@ -121,7 +83,6 @@ training_args = TrainingArguments(
     save_total_limit=1
 )
 
-# 🧠 Trainer (Artık CustomTrainer değil, standart Trainer)
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -132,15 +93,12 @@ trainer = Trainer(
     callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
 )
 
-# 🏋️‍♂️ Eğitimi başlat
 trainer.train()
 
-# 💾 Modeli kaydet 
-model.save_pretrained("./distilbert_hate_final_model_80_20_no_weights") # Kayıt yolunu güncelledik
-tokenizer.save_pretrained("./distilbert_hate_final_model_80_20_no_weights") # Kayıt yolunu güncelledik
+model.save_pretrained("./distilbert_hate_final_model_80_20_no_weights")
+tokenizer.save_pretrained("./distilbert_hate_final_model_80_20_no_weights")
 print("✅ Model başarıyla 'distilbert_hate_final_model_80_20_no_weights' klasörüne kaydedildi (en iyi model).")
 
-# 📈 Değerlendirme
 predictions = trainer.predict(test_ds)
 y_pred = predictions.predictions.argmax(-1)
 
@@ -152,7 +110,6 @@ f1_weighted = f1_score(y_test, y_pred, average="weighted", zero_division=0)
 print(f"Macro F1 Score: {f1_macro:.4f}")
 print(f"Weighted F1 Score: {f1_weighted:.4f}")
 
-# 🧪 ROC AUC
 if num_labels == 2:
     probs = torch.nn.functional.softmax(torch.tensor(predictions.predictions), dim=-1)[:, 1].numpy()
     auc_score = roc_auc_score(y_test, probs)
@@ -162,7 +119,6 @@ else:
 
 print(f"ROC AUC Score: {auc_score:.4f}")
 
-# 🧾 METRİKLERİ CSV'YE KAYDET
 def save_metrics_to_csv(filepath, metrics_dict):
     file_exists = os.path.isfile(filepath)
     with open(filepath, mode="a", newline="") as file:
@@ -181,11 +137,11 @@ metrics = {
     "roc_auc": round(auc_score, 4),
     "train_batch_size": training_args.per_device_train_batch_size,
     "eval_batch_size": training_args.per_device_eval_batch_size,
-    "num_train_epochs": trainer.state.epoch, 
+    "num_train_epochs": trainer.state.epoch,
     "early_stopping_patience": 3,
     "learning_rate": training_args.learning_rate
 }
 
-csv_path = "distilbert_hate_metrics_log_80_20_no_weights.csv" # CSV dosya adını güncelledik
+csv_path = "distilbert_hate_metrics_log_80_20_no_weights.csv"
 save_metrics_to_csv(csv_path, metrics)
 print(f"\n✅ Metrikler başarıyla '{csv_path}' dosyasına kaydedildi.")
